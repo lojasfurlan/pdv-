@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Coletor com Lanterna Automática - V6</title>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #f4f7fc; padding: 20px; max-width: 600px; margin: auto; }
+        .card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h2 { margin-top: 0; color: #1a2b4c; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .badge-coleta { background: #1a2b4c; color: white; padding: 8px 16px; border-radius: 30px; font-size: 14px; }
+        label { font-weight: 600; display: block; margin: 10px 0 5px; color: #333; }
+        input[type="text"] { 
+            width: 100%; padding: 14px; border: 2px solid #ddd; border-radius: 10px; font-size: 16px; 
+            margin-bottom: 8px; background: #fafafa;
+            transition: all 0.3s;
+        }
+        input:focus { border-color: #007bff; outline: none; background: white; box-shadow: 0 0 10px rgba(0,123,255,0.2); }
+
+        select {
+            width: 100%; padding: 14px; border: 2px solid #ddd; border-radius: 10px; font-size: 16px;
+            margin-bottom: 8px; background: #fafafa; font-weight: 600; color: #1a2b4c;
+            transition: all 0.3s; cursor: pointer; appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231a2b4c'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 12px center; background-size: 24px;
+            padding-right: 40px;
+        }
+        select:focus { border-color: #007bff; outline: none; background-color: white; box-shadow: 0 0 10px rgba(0,123,255,0.2); }
+
+        .badge-banco {
+            background: #e8f5e9; color: #1b5e20; border: 2px dashed #4caf50;
+            padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: bold;
+            text-align: center; margin-bottom: 12px; word-break: break-all;
+        }
+
+        .row-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn { 
+            padding: 14px 20px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; 
+            cursor: pointer; flex: 1; min-width: 120px; transition: 0.2s; display: flex; justify-content: center; align-items: center; gap: 8px;
+            touch-action: manipulation;
+        }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-primary:active { background: #0056b3; transform: scale(0.97); }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:active { background: #1e7e34; transform: scale(0.97); }
+        .btn-warning { background: #ffc107; color: #333; }
+        .btn-warning:active { background: #d39e00; transform: scale(0.97); }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:active { background: #bd2130; transform: scale(0.97); }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:active { background: #545b62; transform: scale(0.97); }
+        .btn-info { background: #17a2b8; color: white; }
+        .btn-info:active { background: #138496; transform: scale(0.97); }
+        .btn-cupom { background: #6f42c1; color: white; }
+        .btn-cupom:active { background: #5a32a3; transform: scale(0.97); }
+        .btn-flash { background: #ffc107; color: #333; transition: all 0.3s; }
+        .btn-flash.active { background: #ffeb3b; box-shadow: 0 0 30px #ffeb3b; transform: scale(1.05); }
+        
+        #scanner-container { 
+            background: #000; border-radius: 12px; overflow: hidden; margin: 15px 0; 
+            display: none;
+            position: relative;
+            min-height: 300px;
+        }
+        #scanner-container video { width: 100%; height: auto; display: block; }
+        #scanner-placeholder {
+            color: white;
+            text-align: center;
+            padding: 60px 20px;
+            font-size: 18px;
+        }
+        #scanner-placeholder .spinner {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .scanner-controls {
+            display: flex;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(0,0,0,0.85);
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            justify-content: center;
+            flex-wrap: wrap;
+            z-index: 10;
+        }
+        .scanner-controls button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            touch-action: manipulation;
+            min-width: 60px;
+            transition: all 0.2s;
+        }
+        .scanner-controls button:active { transform: scale(0.95); }
+        .btn-close-cam { background: #dc3545; color: white; }
+
+        .item-lista { 
+            background: #f8f9fa; border-radius: 10px; padding: 12px 16px; margin-bottom: 8px; 
+            display: flex; justify-content: space-between; align-items: center; border-left: 5px solid #007bff;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .item-lista .info { display: flex; flex-direction: column; flex: 1; }
+        .item-lista .codigo { font-weight: bold; font-size: 16px; }
+        .item-lista .qtd { font-size: 14px; color: #555; }
+        .item-lista .detalhes { font-size: 13px; color: #333; }
+        .item-lista .acoes { display: flex; gap: 8px; }
+        .item-lista .acoes button { 
+            background: white; border: 1px solid #ccc; border-radius: 8px; padding: 6px 12px; 
+            font-size: 14px; cursor: pointer; transition: all 0.2s;
+        }
+        .item-lista .acoes button:active { transform: scale(0.9); }
+        .item-lista .acoes .edit { color: #007bff; }
+        .item-lista .acoes .del { color: #dc3545; }
+
+        .total-items { margin-top: 15px; font-weight: 600; color: #1a2b4c; }
+        .total-geral { font-size: 18px; color: #28a745; background: #e8f5e9; padding: 10px; border-radius: 8px; text-align: center; margin-top: 10px; }
+        
+        .status-msg { 
+            background: #e9ecef; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin: 10px 0; 
+            text-align: center; 
+            color: #333;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+            border: 3px solid transparent;
+        }
+        .status-msg.success { 
+            background: #d4edda; 
+            color: #155724; 
+            border-color: #28a745;
+            box-shadow: 0 0 20px rgba(40, 167, 69, 0.3);
+        }
+        .status-msg.error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            border-color: #dc3545;
+            box-shadow: 0 0 20px rgba(220, 53, 69, 0.3);
+            animation: shake 0.5s;
+        }
+        .status-msg.info { 
+            background: #d1ecf1; 
+            color: #0c5460; 
+            border-color: #17a2b8;
+        }
+        .status-msg.warning { 
+            background: #fff3cd; 
+            color: #856404; 
+            border-color: #ffc107;
+            box-shadow: 0 0 20px rgba(255, 193, 7, 0.3);
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        .cupom-container {
+            background: #f8f9fa;
+            border: 2px dashed #6f42c1;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 15px 0;
+            display: none;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .cupom-container .cupom-header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 10px; }
+        .cupom-container .cupom-header h3 { margin: 0; color: #6f42c1; font-size: 20px; }
+        .cupom-container .cupom-header p { margin: 5px 0; font-size: 12px; color: #666; }
+        .cupom-container .cupom-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dotted #ddd; font-size: 13px; }
+        .cupom-container .cupom-item .descricao { flex: 1; margin-right: 10px; }
+        .cupom-container .cupom-item .valor { font-weight: bold; white-space: nowrap; }
+        .cupom-container .cupom-total { display: flex; justify-content: space-between; padding: 10px 0; border-top: 2px solid #333; margin-top: 10px; font-size: 18px; font-weight: bold; }
+        .cupom-container .cupom-footer { text-align: center; border-top: 2px solid #333; padding-top: 10px; margin-top: 10px; font-size: 12px; color: #666; }
+
+        .erro-destacado {
+            background: #dc3545;
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin: 15px 0;
+            font-size: 20px;
+            font-weight: bold;
+            box-shadow: 0 0 30px rgba(220, 53, 69, 0.5);
+            animation: pulse 1s infinite;
+            display: none;
+        }
+        .erro-destacado .sub { font-size: 14px; font-weight: normal; margin-top: 5px; opacity: 0.9; }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        .dica-scanner {
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 14px;
+            color: #0d47a1;
+            text-align: center;
+            display: none;
+            border: 2px solid #64b5f6;
+        }
+        .dica-scanner .destaque {
+            background: #ffeb3b;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            color: #333;
+            display: inline-block;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .leitura-automatica {
+            background: #e8f5e9;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #2e7d32;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        .leitura-automatica .check {
+            color: #4caf50;
+        }
+
+        @media (max-width: 480px) {
+            .btn { font-size: 14px; padding: 12px 16px; min-width: 90px; }
+            .scanner-controls button { padding: 8px 14px; font-size: 12px; }
+            .dica-scanner { font-size: 12px; padding: 10px; }
+            select { font-size: 14px; padding: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>
+            📦 Coletor V6
+            <span class="badge-coleta" id="numeroColetaDisplay">COL-0000</span>
+        </h2>
+
+        <label>🏙️ Cidade / Banco de Dados</label>
+        <select id="cidadeSelect">
+            <option value="TABATINGA">🏙️ Tabatinga — PRODUTOSLOCAL</option>
+            <option value="PEDERNEIRAS">🏙️ Pederneiras — PRODUTOSLOCALPED</option>
+            <option value="ITAPOLIS">🏙️ Itápolis — PRODUTOSLOCALITA</option>
+            <option value="BARIRI">🏙️ Bariri — PRODUTOSLOCALBARIRI</option>
+            <option value="NOVO HORIZONTE">🏙️ Novo Horizonte — PRODUTOSLOCALNH</option>
+        </select>
+        <div class="badge-banco" id="badgeBanco">🗄️ Tabela: PRODUTOSLOCAL</div>
+
+        <div class="erro-destacado" id="erroDestacado">
+            ⚠️ PRODUTO NÃO ENCONTRADO!
+            <div class="sub" id="erroDestacadoSub">Código não cadastrado no sistema</div>
+        </div>
+        
+        <div class="status-msg" id="statusMsg">✅ Pronto para coletar</div>
+
+        <label>🔢 Código de Barras</label>
+        <input type="text" id="codigoInput" placeholder="Digite ou leia o código..." inputmode="numeric" pattern="[0-9]*">
+
+        <label>📦 Quantidade (ex: 1 → 00001, .1 → 000.1)</label>
+        <input type="text" id="quantidadeInput" placeholder="Digite a quantidade" inputmode="decimal" pattern="[0-9.]*">
+
+        <div class="row-buttons">
+            <button class="btn btn-warning" id="btnScan">📷 Ler Código</button>
+            <button class="btn btn-primary" id="btnAdd">➕ Adicionar Item</button>
+        </div>
+
+        <div id="scanner-container">
+            <div id="scanner-placeholder">
+                <div class="spinner"></div>
+                <p>📷 Aguardando câmera...</p>
+                <p style="font-size: 14px; opacity: 0.7;">🔦 A lanterna será ativada automaticamente</p>
+            </div>
+            <div class="scanner-controls">
+                <button class="btn-flash" id="btnFlash">💡 Lanterna</button>
+                <button class="btn-close-cam" id="btnStopScan">❌ Fechar</button>
+            </div>
+        </div>
+
+        <div class="dica-scanner" id="dicaScanner">
+            💡 <span class="destaque">LANTERNA ATIVADA!</span> 
+            Mantenha o código parado e bem iluminado.
+            <br>
+            A lanterna ajuda a ler códigos pequenos e de perto.
+            <br><br>
+            📱 Aproxime e afaste lentamente até encontrar o foco.
+            <div class="leitura-automatica">
+                <span class="check">✅</span> Leitura automática ao detectar
+            </div>
+        </div>
+
+        <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-info" id="btnTestDB" style="flex: 1;">🔌 Testar Banco</button>
+            <button class="btn btn-secondary" id="btnTestCamera" style="flex: 1;">📷 Testar Câmera</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>📋 Itens Coletados (<span id="contadorItens">0</span>)</h3>
+        <div id="listaItens"></div>
+        <div class="total-items" id="totalQuantidade">Total de unidades: 0</div>
+        <div class="total-geral" id="totalGeral">💰 Total: R$ 0,00</div>
+        
+        <hr style="margin: 20px 0;">
+        <div class="row-buttons">
+            <button class="btn btn-cupom" id="btnCupom">🧾 Gerar Cupom</button>
+            <button class="btn btn-success" id="btnExport">📄 Gerar TXT</button>
+            <button class="btn btn-danger" id="btnClear">🗑️ Nova Coleta</button>
+        </div>
+    </div>
+
+    <div class="card" id="cupomCard" style="display: none;">
+        <h3>🧾 CUPOM FISCAL</h3>
+        <div id="cupomContainer" class="cupom-container"></div>
+        <div class="row-buttons" style="margin-top: 10px;">
+            <button class="btn btn-success" id="btnImprimirCupom">🖨️ Imprimir</button>
+            <button class="btn btn-secondary" id="btnFecharCupom">❌ Fechar</button>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        //  CONFIGURAÇÕES
+        // ============================================================
+        const SUPABASE_URL = "https://cxkjgviwtytmwevffmdl.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_4SKS6GFPjmYJzIqX5GZTBA_-7H6IPYt";
+
+        // 🔐 SENHA PARA TROCAR A CIDADE / BANCO
+        const SENHA_TROCA_CIDADE = "191088";
+
+        // 🏙️ CIDADES -> TABELAS DO BANCO
+        const CIDADES = {
+            'TABATINGA':      'PRODUTOSLOCAL',
+            'PEDERNEIRAS':    'PRODUTOSLOCALPED',
+            'ITAPOLIS':       'PRODUTOSLOCALITA',
+            'BARIRI':         'PRODUTOSLOCALBARIRI',
+            'NOVO HORIZONTE': 'PRODUTOSLOCALNH'
+        };
+
+        // Siglas usadas no número da coleta
+        const SIGLAS = {
+            'TABATINGA':      'TAB',
+            'PEDERNEIRAS':    'PED',
+            'ITAPOLIS':       'ITA',
+            'BARIRI':         'BAR',
+            'NOVO HORIZONTE': 'NHO'
+        };
+
+        let supabaseClient = null;
+        let itens = JSON.parse(localStorage.getItem('itensColeta')) || [];
+        let cidadeAtual = localStorage.getItem('cidadeAtual') || 'TABATINGA';
+        if (!CIDADES[cidadeAtual]) cidadeAtual = 'TABATINGA';
+        let tabelaAtual = CIDADES[cidadeAtual];
+        let numeroColeta = localStorage.getItem('numeroColeta') || gerarNumeroColeta();
+        let editIndex = -1;
+        let html5QrCode = null;
+        let isScanning = false;
+        let flashActive = false;
+        let videoTrack = null;
+
+        // ============================================================
+        //  DOM ELEMENTOS
+        // ============================================================
+        const codigoInput = document.getElementById('codigoInput');
+        const quantidadeInput = document.getElementById('quantidadeInput');
+        const listaDiv = document.getElementById('listaItens');
+        const contadorSpan = document.getElementById('contadorItens');
+        const totalQtdSpan = document.getElementById('totalQuantidade');
+        const totalGeralSpan = document.getElementById('totalGeral');
+        const statusMsg = document.getElementById('statusMsg');
+        const numeroColetaDisplay = document.getElementById('numeroColetaDisplay');
+        const scannerContainer = document.getElementById('scanner-container');
+        const scannerPlaceholder = document.getElementById('scanner-placeholder');
+        const btnScan = document.getElementById('btnScan');
+        const btnStopScan = document.getElementById('btnStopScan');
+        const btnAdd = document.getElementById('btnAdd');
+        const btnExport = document.getElementById('btnExport');
+        const btnClear = document.getElementById('btnClear');
+        const btnTestDB = document.getElementById('btnTestDB');
+        const btnTestCamera = document.getElementById('btnTestCamera');
+        const btnCupom = document.getElementById('btnCupom');
+        const btnImprimirCupom = document.getElementById('btnImprimirCupom');
+        const btnFecharCupom = document.getElementById('btnFecharCupom');
+        const btnFlash = document.getElementById('btnFlash');
+        const cupomCard = document.getElementById('cupomCard');
+        const cupomContainer = document.getElementById('cupomContainer');
+        const erroDestacado = document.getElementById('erroDestacado');
+        const erroDestacadoSub = document.getElementById('erroDestacadoSub');
+        const dicaScanner = document.getElementById('dicaScanner');
+        const cidadeSelect = document.getElementById('cidadeSelect');
+        const badgeBanco = document.getElementById('badgeBanco');
+
+        // ============================================================
+        //  FUNÇÕES AUXILIARES
+        // ============================================================
+        function gerarNumeroColeta() {
+            const data = new Date();
+            const ano = data.getFullYear();
+            const mes = String(data.getMonth() + 1).padStart(2, '0');
+            const dia = String(data.getDate()).padStart(2, '0');
+            const ultimo = parseInt(localStorage.getItem('ultimoSequencial') || '0') + 1;
+            localStorage.setItem('ultimoSequencial', String(ultimo));
+            const seq = String(ultimo).padStart(3, '0');
+            const sigla = SIGLAS[cidadeAtual] || 'GEN';
+            return `COL-${sigla}-${ano}${mes}${dia}-${seq}`;
+        }
+
+        function salvarDados() {
+            localStorage.setItem('itensColeta', JSON.stringify(itens));
+            localStorage.setItem('numeroColeta', numeroColeta);
+            localStorage.setItem('cidadeAtual', cidadeAtual);
+            renderizarLista();
+        }
+
+        function exibirStatus(msg, tipo = '') {
+            statusMsg.textContent = msg;
+            statusMsg.className = 'status-msg' + (tipo ? ' ' + tipo : '');
+            if (tipo !== 'error' && tipo !== 'warning') {
+                erroDestacado.style.display = 'none';
+            }
+        }
+
+        function beep() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.frequency.value = 880;
+                oscillator.type = 'sine';
+                gainNode.gain.value = 0.15;
+                oscillator.start();
+                setTimeout(() => {
+                    oscillator.stop();
+                    audioCtx.close();
+                }, 200);
+            } catch (e) { console.log("Beep não disponível"); }
+        }
+
+        function formatarQuantidade(valor) {
+            let v = valor.trim();
+            if (v === '') return '00000';
+            if (!v.includes('.')) return v.padStart(5, '0');
+            let partes = v.split('.');
+            let inteiro = partes[0] || '0';
+            let decimal = partes[1] || '';
+            let lenAtual = inteiro.length + 1 + decimal.length;
+            if (lenAtual >= 5) return v;
+            let zerosNeeded = 5 - lenAtual;
+            let inteiroFormatado = inteiro.padStart(inteiro.length + zerosNeeded, '0');
+            return inteiroFormatado + '.' + decimal;
+        }
+
+        function atualizarBadgeBanco() {
+            badgeBanco.textContent = `🗄️ Cidade: ${cidadeAtual}  |  Tabela: ${tabelaAtual}`;
+        }
+
+        // ============================================================
+        //  TROCA DE CIDADE / BANCO (COM SENHA)
+        // ============================================================
+        function trocarCidade(novaCidade) {
+            if (!CIDADES[novaCidade]) {
+                exibirStatus('❌ Cidade inválida!', 'error');
+                return false;
+            }
+
+            if (itens.length > 0) {
+                const ok = confirm(
+                    `⚠️ ATENÇÃO!\n\n` +
+                    `Trocar para "${novaCidade}" (${CIDADES[novaCidade]}) vai APAGAR os ${itens.length} itens já coletados.\n\n` +
+                    `Deseja continuar?`
+                );
+                if (!ok) return false;
+            }
+
+            cidadeAtual = novaCidade;
+            tabelaAtual = CIDADES[novaCidade];
+
+            // Reseta a coleta pois os produtos são de outro banco
+            itens = [];
+            numeroColeta = gerarNumeroColeta();
+            editIndex = -1;
+            btnAdd.textContent = '➕ Adicionar Item';
+            btnAdd.className = 'btn btn-primary';
+            codigoInput.value = '';
+            quantidadeInput.value = '';
+            cupomCard.style.display = 'none';
+            erroDestacado.style.display = 'none';
+
+            salvarDados();
+            atualizarBadgeBanco();
+
+            exibirStatus(`🏙️ Cidade alterada: ${cidadeAtual} | Banco: ${tabelaAtual}`, 'success');
+            console.log(`🔁 Cidade: ${cidadeAtual} | Tabela: ${tabelaAtual}`);
+            btnScan.focus();
+            return true;
+        }
+
+        cidadeSelect.addEventListener('change', () => {
+            const novaCidade = cidadeSelect.value;
+
+            if (novaCidade === cidadeAtual) return;
+
+            const senha = prompt(`🔒 Digite a SENHA para trocar para:\n\n${novaCidade} (${CIDADES[novaCidade]})`);
+
+            if (senha === null) {
+                cidadeSelect.value = cidadeAtual;
+                return;
+            }
+
+            if (senha.trim() !== SENHA_TROCA_CIDADE) {
+                alert('❌ SENHA INCORRETA!\n\nA cidade não foi alterada.');
+                cidadeSelect.value = cidadeAtual;
+                exibirStatus('❌ Senha incorreta — cidade não alterada', 'error');
+                return;
+            }
+
+            const trocou = trocarCidade(novaCidade);
+            if (!trocou) {
+                cidadeSelect.value = cidadeAtual;
+            }
+        });
+
+        // ============================================================
+        //  TESTAR CÂMERA
+        // ============================================================
+        async function testarCamera() {
+            exibirStatus('📷 Testando câmera...', 'info');
+            btnTestCamera.disabled = true;
+            btnTestCamera.textContent = '⏳ Testando...';
+
+            try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    exibirStatus('❌ Navegador não suporta câmera!', 'error');
+                    btnTestCamera.disabled = false;
+                    btnTestCamera.textContent = '📷 Testar Câmera';
+                    return;
+                }
+
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                
+                console.log('📷 Câmeras encontradas:', videoDevices.length);
+                videoDevices.forEach((device, i) => {
+                    console.log(`  Câmera ${i+1}: ${device.label || 'Sem nome'}`);
+                });
+
+                if (videoDevices.length === 0) {
+                    exibirStatus('❌ Nenhuma câmera encontrada!', 'error');
+                    btnTestCamera.disabled = false;
+                    btnTestCamera.textContent = '📷 Testar Câmera';
+                    return;
+                }
+
+                // Tenta abrir a câmera
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment', width: { ideal: 640 } }
+                });
+
+                // Mostra preview rápido
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.autoplay = true;
+                video.style.width = '100%';
+                video.style.borderRadius = '8px';
+                video.style.maxHeight = '300px';
+                
+                const previewDiv = document.createElement('div');
+                previewDiv.style.marginTop = '10px';
+                previewDiv.innerHTML = '<p style="text-align:center;color:#666;">📷 Prévia da câmera (3 segundos)</p>';
+                previewDiv.appendChild(video);
+                
+                statusMsg.parentNode.insertBefore(previewDiv, statusMsg.nextSibling);
+                
+                setTimeout(() => {
+                    stream.getTracks().forEach(track => track.stop());
+                    if (previewDiv.parentNode) {
+                        previewDiv.remove();
+                    }
+                    exibirStatus('✅ Câmera funcionando!', 'success');
+                }, 3000);
+
+            } catch (err) {
+                exibirStatus(`❌ Erro: ${err.message}`, 'error');
+            }
+
+            btnTestCamera.disabled = false;
+            btnTestCamera.textContent = '📷 Testar Câmera';
+        }
+
+        // ============================================================
+        //  SUPABASE
+        // ============================================================
+        function iniciarSupabase() {
+            try {
+                if (typeof supabase === 'undefined') {
+                    console.warn('⚠️ Supabase não carregada');
+                    return false;
+                }
+                supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                console.log('✅ Supabase inicializado');
+                console.log(`🗄️ Tabela ativa: ${tabelaAtual} (${cidadeAtual})`);
+                return true;
+            } catch (e) {
+                console.error('❌ Erro:', e.message);
+                return false;
+            }
+        }
+
+        async function testarConexao() {
+            if (!supabaseClient) {
+                exibirStatus('❌ Supabase não inicializado!', 'error');
+                return;
+            }
+            exibirStatus(`🔌 Testando ${tabelaAtual}...`, 'info');
+            btnTestDB.disabled = true;
+            btnTestDB.textContent = '⏳ Testando...';
+            try {
+                const { data, error } = await supabaseClient
+                    .from(tabelaAtual)
+                    .select('CODIGO')
+                    .limit(1);
+                if (error) throw error;
+                exibirStatus(`✅ Conexão OK! (${cidadeAtual} - ${tabelaAtual})`, 'success');
+            } catch (err) {
+                exibirStatus(`❌ Erro em ${tabelaAtual}: ${err.message}`, 'error');
+            } finally {
+                btnTestDB.disabled = false;
+                btnTestDB.textContent = '🔌 Testar Banco';
+            }
+        }
+
+        async function buscarProduto(codigo) {
+            if (!supabaseClient) return null;
+            try {
+                const { data, error } = await supabaseClient
+                    .from(tabelaAtual)
+                    .select('CODIGO, NOME, PRECOVENDA')
+                    .eq('CODIGO', codigo)
+                    .maybeSingle();
+                if (error) {
+                    console.error('❌ Erro:', error.message);
+                    return null;
+                }
+                return data;
+            } catch (e) {
+                console.error('❌ Erro:', e.message);
+                return null;
+            }
+        }
+
+        // ============================================================
+        //  FUNÇÃO PRINCIPAL: ATIVAR LANTERNA E LER CÓDIGO
+        // ============================================================
+        async function ativarLanternaELer() {
+            if (isScanning) {
+                pararScanner();
+                return;
+            }
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                exibirStatus('❌ Navegador não suporta câmera.', 'error');
+                return;
+            }
+
+            codigoInput.blur();
+            quantidadeInput.blur();
+
+            scannerContainer.style.display = 'block';
+            scannerPlaceholder.style.display = 'block';
+            btnScan.textContent = '⏳ Iniciando...';
+            btnScan.disabled = true;
+            dicaScanner.style.display = 'none';
+            isScanning = true;
+
+            try {
+                // Tenta ativar a lanterna via MediaStream
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
+                });
+
+                videoTrack = stream.getVideoTracks()[0];
+                
+                if (videoTrack && videoTrack.getCapabilities) {
+                    const capabilities = videoTrack.getCapabilities();
+                    if (capabilities.torch) {
+                        try {
+                            await videoTrack.applyConstraints({
+                                advanced: [{ torch: true }]
+                            });
+                            flashActive = true;
+                            btnFlash.textContent = '💡 Lanterna ON';
+                            btnFlash.classList.add('active');
+                            exibirStatus('🔦 Lanterna ativada!', 'success');
+                            dicaScanner.style.display = 'block';
+                            console.log('✅ Lanterna ativada com sucesso!');
+                        } catch (e) {
+                            console.log('Erro ao ativar lanterna:', e);
+                            exibirStatus('⚠️ Lanterna não disponível', 'warning');
+                        }
+                    } else {
+                        exibirStatus('⚠️ Lanterna não suportada', 'warning');
+                    }
+                }
+
+                stream.getTracks().forEach(track => track.stop());
+
+                html5QrCode = new Html5Qrcode("scanner-container");
+
+                const config = {
+                    fps: 30,
+                    qrbox: { width: 320, height: 240 },
+                    aspectRatio: 1.0,
+                    formatsToSupport: [
+                        Html5QrcodeSupportedFormats.EAN_13,
+                        Html5QrcodeSupportedFormats.EAN_8,
+                        Html5QrcodeSupportedFormats.UPC_A,
+                        Html5QrcodeSupportedFormats.UPC_E,
+                        Html5QrcodeSupportedFormats.CODE_128,
+                        Html5QrcodeSupportedFormats.CODE_39,
+                        Html5QrcodeSupportedFormats.CODE_93,
+                        Html5QrcodeSupportedFormats.QR_CODE,
+                        Html5QrcodeSupportedFormats.DATA_MATRIX,
+                        Html5QrcodeSupportedFormats.ITF,
+                        Html5QrcodeSupportedFormats.CODABAR
+                    ]
+                };
+
+                scannerPlaceholder.style.display = 'none';
+
+                await html5QrCode.start(
+                    { facingMode: "environment" },
+                    config,
+                    (decodedText) => {
+                        beep();
+                        codigoInput.value = decodedText;
+                        quantidadeInput.value = '';
+                        exibirStatus(`✅ Código lido: ${decodedText}`, 'success');
+                        
+                        desativarLanterna();
+                        
+                        setTimeout(() => {
+                            pararScanner();
+                            quantidadeInput.focus();
+                        }, 300);
+                    },
+                    () => {}
+                );
+
+                btnScan.textContent = '⏹️ Parar Leitura';
+                btnScan.disabled = false;
+                exibirStatus('📷 Câmera e lanterna ativas!', 'info');
+
+                setTimeout(() => {
+                    reativarLanterna();
+                }, 500);
+
+            } catch (err) {
+                console.error('❌ Erro:', err);
+                let mensagem = 'Erro ao iniciar: ';
+                if (err.message === 'undefined' || !err.message) {
+                    mensagem += 'Verifique as permissões da câmera.';
+                } else if (err.message.includes('Permission')) {
+                    mensagem += 'Permissão negada. Permita o acesso à câmera.';
+                } else if (err.message.includes('NotFound')) {
+                    mensagem += 'Nenhuma câmera encontrada.';
+                } else {
+                    mensagem += err.message || 'Erro desconhecido.';
+                }
+                exibirStatus(`❌ ${mensagem}`, 'error');
+                pararScanner();
+                btnScan.textContent = '📷 Ler Código';
+                btnScan.disabled = false;
+                dicaScanner.style.display = 'none';
+            }
+        }
+
+        // ============================================================
+        //  FUNÇÕES DA LANTERNA
+        // ============================================================
+        async function reativarLanterna() {
+            try {
+                const videoElement = document.querySelector('#scanner-container video');
+                if (videoElement && videoElement.srcObject) {
+                    const track = videoElement.srcObject.getVideoTracks()[0];
+                    if (track && track.getCapabilities && track.getCapabilities().torch) {
+                        await track.applyConstraints({
+                            advanced: [{ torch: true }]
+                        });
+                        flashActive = true;
+                        btnFlash.textContent = '💡 Lanterna ON';
+                        btnFlash.classList.add('active');
+                        console.log('✅ Lanterna reativada!');
+                    }
+                }
+            } catch (e) {
+                console.log('Erro ao reativar lanterna:', e);
+            }
+        }
+
+        async function desativarLanterna() {
+            try {
+                const videoElement = document.querySelector('#scanner-container video');
+                if (videoElement && videoElement.srcObject) {
+                    const track = videoElement.srcObject.getVideoTracks()[0];
+                    if (track && track.getCapabilities && track.getCapabilities().torch) {
+                        await track.applyConstraints({
+                            advanced: [{ torch: false }]
+                        });
+                    }
+                }
+            } catch (e) {
+                console.log('Erro ao desativar lanterna:', e);
+            }
+            flashActive = false;
+            btnFlash.textContent = '💡 Lanterna';
+            btnFlash.classList.remove('active');
+        }
+
+        async function toggleFlash() {
+            try {
+                const videoElement = document.querySelector('#scanner-container video');
+                if (videoElement && videoElement.srcObject) {
+                    const track = videoElement.srcObject.getVideoTracks()[0];
+                    if (track && track.getCapabilities && track.getCapabilities().torch) {
+                        flashActive = !flashActive;
+                        await track.applyConstraints({
+                            advanced: [{ torch: flashActive }]
+                        });
+                        btnFlash.textContent = flashActive ? '💡 Lanterna ON' : '💡 Lanterna';
+                        btnFlash.classList.toggle('active', flashActive);
+                        exibirStatus(flashActive ? '🔦 Lanterna ligada!' : '🔦 Lanterna desligada', 'info');
+                        if (flashActive) {
+                            dicaScanner.style.display = 'block';
+                        } else {
+                            dicaScanner.style.display = 'none';
+                        }
+                        setTimeout(() => {
+                            if (statusMsg.textContent.includes('Lanterna')) {
+                                exibirStatus('📷 Leitura ativa', 'info');
+                            }
+                        }, 1500);
+                    } else {
+                        exibirStatus('⚠️ Lanterna não suportada', 'warning');
+                    }
+                }
+            } catch (e) {
+                console.log('Erro ao alternar lanterna:', e);
+                exibirStatus('⚠️ Erro ao controlar lanterna', 'error');
+            }
+        }
+
+        // ============================================================
+        //  PARAR SCANNER
+        // ============================================================
+        function pararScanner() {
+            desativarLanterna();
+
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    html5QrCode.clear();
+                    scannerContainer.style.display = 'none';
+                    scannerPlaceholder.style.display = 'block';
+                    btnScan.textContent = '📷 Ler Código';
+                    btnScan.disabled = false;
+                    dicaScanner.style.display = 'none';
+                    isScanning = false;
+                    flashActive = false;
+                    btnFlash.textContent = '💡 Lanterna';
+                    btnFlash.classList.remove('active');
+                    if (!statusMsg.textContent.includes('✅')) {
+                        exibirStatus('Câmera fechada.', '');
+                    }
+                    btnScan.focus();
+                }).catch(() => {
+                    scannerContainer.style.display = 'none';
+                    scannerPlaceholder.style.display = 'block';
+                    btnScan.textContent = '📷 Ler Código';
+                    btnScan.disabled = false;
+                    dicaScanner.style.display = 'none';
+                    isScanning = false;
+                    flashActive = false;
+                    btnFlash.textContent = '💡 Lanterna';
+                    btnFlash.classList.remove('active');
+                    btnScan.focus();
+                });
+            } else {
+                scannerContainer.style.display = 'none';
+                scannerPlaceholder.style.display = 'block';
+                btnScan.textContent = '📷 Ler Código';
+                btnScan.disabled = false;
+                dicaScanner.style.display = 'none';
+                isScanning = false;
+                flashActive = false;
+                btnFlash.textContent = '💡 Lanterna';
+                btnFlash.classList.remove('active');
+                btnScan.focus();
+            }
+        }
+
+        // ============================================================
+        //  ADICIONAR ITEM
+        // ============================================================
+        async function adicionarOuAtualizar() {
+            const codigo = codigoInput.value.trim();
+            let quantidade = quantidadeInput.value.trim();
+
+            if (!codigo) {
+                exibirStatus('⚠️ Digite um código!', 'error');
+                codigoInput.focus();
+                return;
+            }
+            if (!quantidade) {
+                exibirStatus('⚠️ Digite a quantidade!', 'error');
+                quantidadeInput.focus();
+                return;
+            }
+
+            btnAdd.disabled = true;
+            btnAdd.textContent = '⏳ Buscando...';
+            exibirStatus(`🔍 Buscando em ${tabelaAtual}...`, 'info');
+
+            const produto = await buscarProduto(codigo);
+
+            if (!produto) {
+                exibirStatus(`❌ Produto não encontrado!`, 'error');
+                erroDestacadoSub.textContent = `Código: ${codigo} não cadastrado em ${cidadeAtual} (${tabelaAtual})`;
+                erroDestacado.style.display = 'block';
+                btnAdd.disabled = false;
+                btnAdd.textContent = '➕ Adicionar Item';
+                return;
+            }
+
+            const qtdFormatada = formatarQuantidade(quantidade);
+            const novoItem = {
+                codigo: codigo,
+                quantidade: qtdFormatada,
+                nome: produto.NOME,
+                preco: parseFloat(produto.PRECOVENDA) || 0,
+                cidade: cidadeAtual,
+                tabela: tabelaAtual
+            };
+
+            if (editIndex === -1) {
+                itens.push(novoItem);
+                exibirStatus(`✅ Adicionado: ${produto.NOME}`, 'success');
+            } else {
+                itens[editIndex] = novoItem;
+                exibirStatus(`✅ Atualizado!`, 'success');
+                editIndex = -1;
+                btnAdd.textContent = '➕ Adicionar Item';
+                btnAdd.className = 'btn btn-primary';
+            }
+
+            salvarDados();
+            codigoInput.value = '';
+            quantidadeInput.value = '';
+            btnAdd.disabled = false;
+            btnAdd.textContent = '➕ Adicionar Item';
+            btnScan.focus();
+        }
+
+        function editarItem(index) {
+            const item = itens[index];
+            codigoInput.value = item.codigo;
+            quantidadeInput.value = item.quantidade;
+            editIndex = index;
+            btnAdd.textContent = '💾 Atualizar';
+            btnAdd.className = 'btn btn-warning';
+            exibirStatus(`✏️ Editando item ${index+1}`, '');
+            codigoInput.focus();
+            if (isScanning) pararScanner();
+        }
+
+        function excluirItem(index) {
+            if (confirm(`Excluir item "${itens[index].codigo}"?`)) {
+                itens.splice(index, 1);
+                if (editIndex === index) {
+                    editIndex = -1;
+                    btnAdd.textContent = '➕ Adicionar Item';
+                    btnAdd.className = 'btn btn-primary';
+                    codigoInput.value = '';
+                    quantidadeInput.value = '';
+                }
+                salvarDados();
+                exibirStatus('🗑️ Item removido!', '');
+                btnScan.focus();
+            }
+        }
+
+        function renderizarLista() {
+            listaDiv.innerHTML = '';
+            if (itens.length === 0) {
+                listaDiv.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">📭 Nenhum item coletado</p>';
+                contadorSpan.textContent = '0';
+                totalQtdSpan.textContent = 'Total: 0';
+                totalGeralSpan.textContent = '💰 Total: R$ 0,00';
+                numeroColetaDisplay.textContent = numeroColeta;
+                return;
+            }
+
+            let totalQtd = 0, totalGeral = 0;
+            itens.forEach((item, index) => {
+                let qtdNum = parseFloat(item.quantidade.replace(',', '.')) || 0;
+                totalQtd += qtdNum;
+                const preco = parseFloat(item.preco) || 0;
+                const subtotal = qtdNum * preco;
+                totalGeral += subtotal;
+
+                const div = document.createElement('div');
+                div.className = 'item-lista';
+                div.innerHTML = `
+                    <div class="info">
+                        <span class="codigo">📌 ${item.codigo}</span>
+                        <span class="detalhes">${item.nome || 'Sem nome'}</span>
+                        <span class="qtd">Qtd: ${item.quantidade}  |  R$ ${preco.toFixed(2)}  |  Subtotal: R$ ${subtotal.toFixed(2)}</span>
+                    </div>
+                    <div class="acoes">
+                        <button class="edit" onclick="editarItem(${index})">✏️</button>
+                        <button class="del" onclick="excluirItem(${index})">🗑️</button>
+                    </div>
+                `;
+                listaDiv.appendChild(div);
+            });
+
+            contadorSpan.textContent = itens.length;
+            totalQtdSpan.textContent = `Total: ${totalQtd.toFixed(2)}`;
+            totalGeralSpan.textContent = `💰 Total: R$ ${totalGeral.toFixed(2)}`;
+            numeroColetaDisplay.textContent = numeroColeta;
+        }
+
+        // ============================================================
+        //  CUPOM
+        // ============================================================
+        function gerarCupom() {
+            if (itens.length === 0) {
+                exibirStatus('⚠️ Sem itens!', 'error');
+                return;
+            }
+            const hoje = new Date();
+            const dataHora = hoje.toLocaleString('pt-BR', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            });
+
+            let totalGeral = 0, itensCupom = '';
+            itens.forEach((item) => {
+                const qtdNum = parseFloat(item.quantidade.replace(',', '.')) || 0;
+                const preco = parseFloat(item.preco) || 0;
+                const subtotal = qtdNum * preco;
+                totalGeral += subtotal;
+                const qtdFormatada = item.quantidade.replace(/^0+/, '');
+                itensCupom += `
+                    <div class="cupom-item">
+                        <span class="descricao">${qtdFormatada}x ${item.nome || 'Sem nome'}</span>
+                        <span class="valor">R$ ${subtotal.toFixed(2)}</span>
+                    </div>
+                    <div style="font-size: 11px; color: #999; padding-left: 10px; margin-bottom: 5px;">
+                        Cód: ${item.codigo} | Unit: R$ ${preco.toFixed(2)}
+                    </div>
+                `;
+            });
+
+            const numCupom = String(Math.floor(Math.random() * 999999)).padStart(6, '0');
+            cupomContainer.innerHTML = `
+                <div class="cupom-header">
+                    <h3>🧾 CUPOM FISCAL</h3>
+                    <p>Nº ${numCupom} | Coleta: ${numeroColeta}</p>
+                    <p>🏙️ ${cidadeAtual} — ${tabelaAtual}</p>
+                    <p>${dataHora}</p>
+                    <p>${'-'.repeat(40)}</p>
+                </div>
+                ${itensCupom}
+                <div class="cupom-total">
+                    <span>💰 TOTAL</span>
+                    <span>R$ ${totalGeral.toFixed(2)}</span>
+                </div>
+                <div class="cupom-footer">
+                    <p>${'-'.repeat(40)}</p>
+                    <p>Itens: ${itens.length} | Unidades: ${calcularTotalUnidades()}</p>
+                    <p>${'-'.repeat(40)}</p>
+                    <p>Sistema de Coleta</p>
+                    <p>Obrigado!</p>
+                </div>
+            `;
+            cupomContainer.style.display = 'block';
+            cupomCard.style.display = 'block';
+            cupomCard.scrollIntoView({ behavior: 'smooth' });
+            exibirStatus('🧾 Cupom gerado!', 'success');
+        }
+
+        function exportarTXTCupom() {
+            if (itens.length === 0) {
+                exibirStatus('⚠️ Sem itens!', 'error');
+                return;
+            }
+            const hoje = new Date();
+            const dataHora = hoje.toLocaleString('pt-BR', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            });
+            const dataArquivo = hoje.toISOString().slice(0,10).replace(/-/g, '');
+            const nomeArquivo = `CUPOM_${numeroColeta}_${dataArquivo}.txt`;
+
+            let linhas = [], totalGeral = 0;
+            const sep = '-'.repeat(50);
+            linhas.push('='.repeat(50));
+            linhas.push('          🧾 CUPOM FISCAL');
+            linhas.push('='.repeat(50));
+            linhas.push(`Nº ${String(Math.floor(Math.random() * 999999)).padStart(6, '0')}  |  Coleta: ${numeroColeta}`);
+            linhas.push(`🏙️ ${cidadeAtual} — ${tabelaAtual}`);
+            linhas.push(`Data: ${dataHora}`);
+            linhas.push(sep);
+            linhas.push('');
+
+            itens.forEach((item) => {
+                const qtdNum = parseFloat(item.quantidade.replace(',', '.')) || 0;
+                const preco = parseFloat(item.preco) || 0;
+                const subtotal = qtdNum * preco;
+                totalGeral += subtotal;
+                const qtdFormatada = item.quantidade.replace(/^0+/, '');
+                linhas.push(`${qtdFormatada}x ${(item.nome || 'Sem nome').padEnd(30, ' ')} R$ ${subtotal.toFixed(2).padStart(8, ' ')}`);
+                linhas.push(`   Cód: ${item.codigo}  |  Unit: R$ ${preco.toFixed(2)}`);
+                linhas.push('');
+            });
+
+            linhas.push(sep);
+            linhas.push(`💰 TOTAL`.padEnd(40, ' ') + `R$ ${totalGeral.toFixed(2).padStart(8, ' ')}`);
+            linhas.push(sep);
+            linhas.push(`Itens: ${itens.length} | Unidades: ${calcularTotalUnidades()}`);
+            linhas.push(`Cidade: ${cidadeAtual} | Tabela: ${tabelaAtual}`);
+            linhas.push(sep);
+            linhas.push('Sistema de Coleta');
+            linhas.push('Obrigado!');
+            linhas.push('='.repeat(50));
+
+            const blob = new Blob([linhas.join('\n')], { type: 'text/plain;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = nomeArquivo;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            exibirStatus('📄 Cupom baixado!', 'success');
+        }
+
+        function calcularTotalUnidades() {
+            let total = 0;
+            itens.forEach(item => {
+                total += parseFloat(item.quantidade.replace(',', '.')) || 0;
+            });
+            return total.toFixed(2);
+        }
+
+        function imprimirCupom() {
+            const conteudo = cupomContainer.innerHTML;
+            const janela = window.open('', '_blank', 'width=400,height=600');
+            janela.document.write(`
+                <html><head><title>Cupom</title>
+                <style>
+                    body { font-family: 'Courier New', monospace; padding: 20px; max-width: 400px; margin: auto; }
+                    .cupom-header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
+                    .cupom-header h3 { margin: 0; color: #6f42c1; }
+                    .cupom-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dotted #ddd; }
+                    .cupom-total { display: flex; justify-content: space-between; padding: 10px 0; border-top: 2px solid #333; margin-top: 10px; font-size: 18px; font-weight: bold; }
+                    .cupom-footer { text-align: center; border-top: 2px solid #333; padding-top: 10px; margin-top: 10px; font-size: 12px; color: #666; }
+                    @media print { .no-print { display: none; } }
+                </style>
+                </head><body>
+                ${conteudo}
+                <div class="no-print" style="text-align:center;margin-top:20px;">
+                    <button onclick="window.print()" style="padding:10px 20px;background:#6f42c1;color:white;border:none;border-radius:8px;cursor:pointer;">🖨️ Imprimir</button>
+                    <button onclick="window.close()" style="padding:10px 20px;background:#6c757d;color:white;border:none;border-radius:8px;cursor:pointer;">❌ Fechar</button>
+                </div>
+            </body></html>`);
+            janela.document.close();
+        }
+
+        function novaColeta() {
+            if (itens.length > 0 && !confirm('⚠️ Apagar todos os itens e iniciar nova coleta?')) return;
+            itens = [];
+            numeroColeta = gerarNumeroColeta();
+            localStorage.setItem('numeroColeta', numeroColeta);
+            editIndex = -1;
+            btnAdd.textContent = '➕ Adicionar Item';
+            btnAdd.className = 'btn btn-primary';
+            codigoInput.value = '';
+            quantidadeInput.value = '';
+            salvarDados();
+            exibirStatus(`🆕 Nova coleta: ${numeroColeta} (${cidadeAtual})`, '');
+            btnScan.focus();
+            cupomCard.style.display = 'none';
+            erroDestacado.style.display = 'none';
+        }
+
+        // ============================================================
+        //  EVENTOS
+        // ============================================================
+        btnScan.addEventListener('click', ativarLanternaELer);
+        btnStopScan.addEventListener('click', pararScanner);
+        btnFlash.addEventListener('click', toggleFlash);
+        btnAdd.addEventListener('click', adicionarOuAtualizar);
+        btnExport.addEventListener('click', exportarTXTCupom);
+        btnClear.addEventListener('click', novaColeta);
+        btnTestDB.addEventListener('click', testarConexao);
+        btnTestCamera.addEventListener('click', testarCamera);
+        btnCupom.addEventListener('click', gerarCupom);
+        btnImprimirCupom.addEventListener('click', imprimirCupom);
+        btnFecharCupom.addEventListener('click', () => { cupomCard.style.display = 'none'; });
+
+        codigoInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') adicionarOuAtualizar(); });
+        quantidadeInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') adicionarOuAtualizar(); });
+
+        // ============================================================
+        //  INICIALIZAÇÃO
+        // ============================================================
+        iniciarSupabase();
+        cidadeSelect.value = cidadeAtual;
+        atualizarBadgeBanco();
+        numeroColetaDisplay.textContent = numeroColeta;
+        renderizarLista();
+        quantidadeInput.value = '';
+        btnScan.focus();
+
+        window.addEventListener('beforeunload', () => {
+            if (isScanning) pararScanner();
+        });
+
+        console.log('🚀 Coletor V6 - Multibanco por cidade!');
+        console.log(`🏙️ Cidade: ${cidadeAtual} | 🗄️ Tabela: ${tabelaAtual}`);
+        console.log('🔐 Senha para trocar de cidade: 191088');
+        console.log('📋 Formatos suportados: EAN-13, Code 128, QR Code, etc.');
+    </script>
+</body>
+</html>
